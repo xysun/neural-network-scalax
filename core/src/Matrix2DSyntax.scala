@@ -1,4 +1,4 @@
-object SquareMatrix {
+object Matrix2DSyntax {
 
   type Matrix2D = Vector[Vector[Int]] // row-oriented
 

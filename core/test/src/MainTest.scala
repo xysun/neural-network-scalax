@@ -1,6 +1,6 @@
 import org.scalatest.FunSuite
 
-import SquareMatrix._
+import Matrix2DSyntax._
 
 class MainTest extends FunSuite{
 

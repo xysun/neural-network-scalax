@@ -5,7 +5,7 @@ import fs2.{Pipe, Pull, io, text}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import SquareMatrix._
+import Matrix2DSyntax._
 
 object Main extends App {
 
