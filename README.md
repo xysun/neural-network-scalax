@@ -21,3 +21,5 @@ key components/concepts:
 
 
 - scalafmt
+
+- scala/jvm's image library is embarrasing; eg. no pyplot.imshow(numpy array) equivalent

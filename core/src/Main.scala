@@ -1,11 +1,14 @@
+import java.io.{File, PrintWriter}
+import java.nio.ByteOrder
 import java.nio.file.{Files, Paths}
 
 import cats.effect.{ContextShift, ExitCode, IO}
 import fs2.{Pipe, Pull, io, text}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-
 import Matrix2DSyntax._
+
+import scala.io.Source
 
 object Main extends App {
 
@@ -30,10 +33,10 @@ object Main extends App {
 
   // print out first 10 labels
   trainLabels
-    .take(10)
+//    .take(10)
     .compile.toVector
     .unsafeRunSync()
-    .foreach(println)
+    .forall(i => i >= 0 && i <= 10)
 
   // load image
 
@@ -42,16 +45,21 @@ object Main extends App {
   val trainImages:fs2.Stream[IO, Matrix2D] =
     io.file.readAll[IO](path = Paths.get(trainImgFileName), global, chunkSize = 1024)
     .drop(16) // 8 more bytes for number of rows and number of columns
-    .map(_.toInt)
-      .chunkN(imgDimension * imgDimension, allowFewer = false)
+    .map(java.lang.Byte.toUnsignedInt) // java is big endian
+    .chunkN(imgDimension * imgDimension, allowFewer = false)
     .map(_.toVector)
     .map(_.toMatrix2D(rows = imgDimension, cols = imgDimension))
 
 //  val imgCount = trainImages.compile.toVector.map(_.size).unsafeRunSync()
 //  println(s"total images: $imgCount") // must be 60k
 
-  // display first image
+  // export first img then display in jupyter
   val img:Matrix2D = trainImages.take(1).compile.toVector.unsafeRunSync()(0)
+  assert(img.flatten.forall(_ >= 0))
+
+//  val pw = new PrintWriter(new File("img1.csv"))
+//  pw.write(img.flatten.mkString("\n"))
+//  pw.close()
 
   val trainData:fs2.Stream[IO, (Int, Matrix2D)] = trainLabels.zip(trainImages)
 
