@@ -1,7 +1,9 @@
 // build.sc
-import mill._, scalalib._
+import mill._
+import mill.scalalib.scalafmt.ScalafmtModule
+import scalalib._
 
-object core extends ScalaModule {
+object core extends ScalaModule with ScalafmtModule{
   def scalaVersion = "2.12.4"
 
   override def ivyDeps = Agg(
