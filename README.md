@@ -23,6 +23,9 @@ What's new in neural network:
 - nonlinear function approximation
 
 
+Type is great! easier to debug
+Interface and inheritance is great!
+
 Problems with scala:
 - scala/jvm's image library is embarrasing; eg. no pyplot.imshow(numpy array) equivalent
 - scala's file io is embarrasing, not easy to read/write to file (compared to Python's `with open()`)
