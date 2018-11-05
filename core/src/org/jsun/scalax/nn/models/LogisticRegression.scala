@@ -3,12 +3,26 @@ package org.jsun.scalax.nn.models
 import org.jsun.scalax.nn.Matrix2D
 
 import scala.math.{E, log, pow}
+import org.jsun.scalax.nn.graph._
 
 class LogisticRegression extends NeuralNetwork {
 
+  private val forwardGraph = for {
+    _ <- Matmul
+    _ <- Addition
+    ans <- Logit
+  } yield ans
+
   def forwardProp(weights: Vector[Double], bias:Double, image:Matrix2D[Double]):Double = {
-    val z = weights.zip(image.flatten).map{case (w,x) => w*x}.sum + bias
-    1 / (1 + pow(E, -z))
+
+    val args = List(
+      MeVector(weights),
+      MeVector(image.flatten),
+      MeDouble(bias)
+    )
+
+    forwardGraph.run(args).value._1.head.asInstanceOf[MeDouble].v
+    
   }
 
   def backProp(yHat:Double, y:Int, image:Matrix2D[Double]):(Vector[Double], Double) = {
