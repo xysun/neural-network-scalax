@@ -18,8 +18,10 @@ class LogisticRegression extends NeuralNetwork {
     // dLoss/dZ
     val a = (1-2*y)*z
     val d1 = 1 / (1 + pow(E, a)) * pow(E, a) * (1-2*y)
+
     // dZ/dyHat
     val d2 = 1 / (yHat * (1-yHat))
+
     // dYHat/dz
     val d3 = yHat * (1-yHat)
 
