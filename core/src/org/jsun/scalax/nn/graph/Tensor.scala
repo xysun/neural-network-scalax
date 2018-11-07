@@ -12,52 +12,68 @@ object Tensor {
 
   case class TVector(v: Vector[Double]) extends Tensor
 
+  object Tensor {
+    def add(t1:Tensor, t2:Tensor):Tensor = (t1, t2) match {
+      case (Scalar(v1), Scalar(v2)) => Scalar(v1 + v2)
+      case (TVector(v1), TVector(v2)) => TVector(v1.zip(v2).map(t => t._1 + t._2))
+    }
+  }
+
   trait Op {
-    def bprop(inputs: List[Node], x: Node, g: Double): Double
+    def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor
   }
 
   trait BinaryOp extends Op {
-    def f(n1:Node, n2:Node):Double
+    def f(n1:Node, n2:Node):Tensor
   }
 
   trait SingleOp extends Op {
-    def f(n:Node):Double
+    def f(n:Node):Tensor
   }
 
   //  case class CrossProduct extends Op
 
-  case object ScalarAddOp extends BinaryOp {
-    override def bprop(inputs: List[Node], x: Node, g: Double): Double = g
+  case object Add extends BinaryOp {
+    override def bprop(inputs: List[Node], x: Node, g: Tensor) = g
 
-    override def f(n1: Node, n2: Node): Double = n1.v + n2.v
+    override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match {
+      case (Scalar(v1), Scalar(v2)) => Scalar(v1+v2)
+      case (TVector(v1), TVector(v2)) => TVector(v1.zip(v2).map(t => t._1 + t._2))
+    }
   }
 
   case object ScalarMultiOp extends BinaryOp {
-    override def bprop(inputs: List[Node], x: Node, g: Double): Double = {
+    override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor = {
       require(inputs.size == 2)
       val other = inputs.filter(_.name != x.name)
       require(other.size == 1)
-      g * other.head.v
+
+      (g, other.head.v) match {
+        case (Scalar(v1), Scalar(v2)) => Scalar(v1 * v2)
+      }
     }
 
-    override def f(n1: Node, n2: Node): Double = n1.v * n2.v
+    override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match {
+      case (Scalar(v1), Scalar(v2)) => Scalar(v1*v2)
+    }
   }
 
     case object Sigmoid extends SingleOp{
-      override def f(n: Node): Double = {
-        1 / (1 + math.pow(math.E, -1 * n.v))
+      override def f(n: Node): Scalar = n.v match {
+        case Scalar(v) => Scalar(1 / (1 + math.pow(math.E, -1 * v)))
       }
 
-      override def bprop(inputs: List[Node], x: Node, g: Double): Double = {
-        val y = f(x)
-        g * y * (1-y)
+      override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor =  g match {
+        case Scalar(v) =>
+          val y = f(x)
+          Scalar(v * y.v * (1-y.v))
       }
     }
 
   //  case class CrossEntropyLoss extends Op
 
   case object Ident extends Op {
-    override def bprop(inputs: List[Node], x: Node, g: Double): Double = g
+    override def bprop(inputs: List[Node], x: Node, g: Tensor) = g
   }
 
   trait Graph { // this will be updated in forwardProp via state monad (state = graph)
@@ -73,6 +89,28 @@ object Tensor {
     val nodes: List[Node]
     val consumersMap: Map[String, List[Node]]
     val inputsMap: Map[String, List[Node]]
+
+    def backProp(targets: List[Node], z: Node) = {
+
+      def buildGrad(v: Node, gradTable: Map[String, Tensor]): Map[String, Tensor] = {
+        if (gradTable contains v.name) gradTable
+        else {
+          val g = consumersMap(v.name).map(c => {
+            val d = buildGrad(c, gradTable)(c.name)
+            c.op.bprop(inputsMap(c.name), v, d)
+          }).reduce((t1, t2) => Tensor.add(t1, t2))
+
+          gradTable + ((v.name, g))
+        }
+      }
+
+      targets
+        .foldRight(Map[String, Tensor](z.name -> Scalar(1))){
+          case (t, gradTable) => buildGrad(t, gradTable)
+        }
+        .filterKeys(targets.map(_.name) contains _)
+
+    }
   }
 
   def emptyGraph(initNodes:List[Node]) = new Graph {
@@ -81,7 +119,7 @@ object Tensor {
     override val inputsMap: Map[String, List[Node]] = Map.empty
   }
 
-  def BinaryStateNode(op:BinaryOp) = State[(List[Node], Graph), Double]{
+  def BinaryStateNode(op:BinaryOp) = State[(List[Node], Graph), Tensor]{
     case (n1 :: n2 :: tail, g) => {
       val ans = op.f(n1, n2)
       val nodeName = UUID.randomUUID().toString
@@ -100,7 +138,7 @@ object Tensor {
     }
   }
 
-  def SingleStateNode(op:SingleOp) = State[(List[Node], Graph), Double]{
+  def SingleStateNode(op:SingleOp) = State[(List[Node], Graph), Tensor]{
     case (n1 :: tail, g) => {
       val ans = op.f(n1)
       val nodeName = UUID.randomUUID().toString
@@ -120,31 +158,11 @@ object Tensor {
 
   case class Node(
                    name: String,
-                   v: Double,
+                   v: Tensor,
                    op: Op
                  )
 
 
-  def backProp(targets: List[Node], graph: Graph, z: Node) = {
 
-    def buildGrad(v: Node, gradTable: Map[String, Double]): Map[String, Double] = {
-      if (gradTable contains v.name) gradTable
-      else {
-        val g = graph.consumersMap(v.name).map(c => {
-          val d = buildGrad(c, gradTable)(c.name)
-          c.op.bprop(graph.inputsMap(c.name), v, d)
-        }).sum
-
-        gradTable + ((v.name, g))
-      }
-    }
-
-    targets
-      .foldRight(Map[String, Double](z.name -> 1)){
-        case (t, gradTable) => buildGrad(t, gradTable)
-      }
-      .filterKeys(targets.map(_.name) contains _)
-
-  }
 
 }

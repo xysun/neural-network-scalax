@@ -23,43 +23,47 @@ class GraphTest extends FunSuite{
 
   test("build graph in forward propagation"){
 
-    val n1 = Node("n1", 1, Ident)
-    val n2 = Node("n2", 2, Ident)
+    val n1 = Node("n1", Scalar(1), Ident)
+    val n2 = Node("n2", Scalar(2), Ident)
 
-    val initState = (List(n1,n2), emptyGraph(List(n1, n2)))
+    val args = List(n1, n2)
+
+    val initState = (args, emptyGraph(args))
 
     val g = for {
-      ans <- BinaryStateNode(ScalarAddOp)
+      ans <- BinaryStateNode(Add)
     } yield ans
 
     val ((finalNodes, finalGraph), ans) = g.run(initState).value
 
-    assert(ans == 3)
+    assert(ans == Scalar(3))
     assert(finalGraph.nodes.size == 3)
     assert(finalGraph.consumersMap.keySet == Set("n1", "n2"))
     assert(finalGraph.inputsMap.size == 1)
     assert(finalGraph.inputsMap.head._2.map(_.name).toSet == Set("n1", "n2"))
 
-    val gradients = backProp(List(n1, n2), finalGraph, finalNodes.head)
-    assert(gradients == Map("n1" -> 1.0, "n2" -> 1.0))
+    val gradients = finalGraph.backProp(args, finalNodes.head)
+    assert(gradients == Map("n1" -> Scalar(1.0), "n2" -> Scalar(1.0)))
 
   }
 
   test("bprop2") {
-    val n1 = Node("n1", 1, Ident)
-    val n2 = Node("n2", 2, Ident)
-    val n3 = Node("n3", 4, Ident)
+    val n1 = Node("n1", Scalar(1), Ident)
+    val n2 = Node("n2", Scalar(2), Ident)
+    val n3 = Node("n3", Scalar(4), Ident)
 
-    val init = (List(n1,n2,n3), emptyGraph(List(n1,n2,n3)))
+    val args = List(n1,n2,n3)
+
+    val init = (args, emptyGraph(args))
 
     val compute = for {
-      _ <- BinaryStateNode(ScalarAddOp)
+      _ <- BinaryStateNode(Add)
       ans <- BinaryStateNode(ScalarMultiOp)
     } yield ans
 
     val ((finalNodes, finalGraph), ans) = compute.run(init).value
 
-    val gradients = backProp(List(n1, n2, n3), finalGraph, finalNodes.head)
-    assert(gradients == Map("n1" -> 4.0, "n2" -> 4.0, "n3" -> 3.0))
+    val gradients = finalGraph.backProp(List(n1, n2, n3), finalNodes.head)
+    assert(gradients == Map("n1" -> Scalar(4.0), "n2" -> Scalar(4.0), "n3" -> Scalar(3.0)))
   }
 }
