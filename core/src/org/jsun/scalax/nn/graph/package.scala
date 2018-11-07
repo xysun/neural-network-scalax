@@ -4,11 +4,6 @@ import cats.data.State
 
 package object graph {
 
-  sealed trait Op
-
-  case class Node(op: Op, parent: Node, inputs:Seq[Double])
-
-  type Graph = State[Node, Double]
 
   sealed trait Numeric // union type in dotty :/
 
