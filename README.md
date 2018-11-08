@@ -57,3 +57,11 @@ But why?
 Goal in talk
 - dymystify neural network
 - show how "general" and how extensible this idea is: you can stack up arbitrary neurons and activation functions
+
+composability: matmul + add => Linear layer; compare with Keras api
+
+possible questions:
+- SGD
+- what is the use of optimizer?
+
+can't really shuffle

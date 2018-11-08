@@ -13,6 +13,8 @@ object Main extends App {
 
   println("hello")
 
+  val start = System.currentTimeMillis()
+
   implicit val ioContextShift: ContextShift[IO] = IO.contextShift(global)
 
   // read MNIST dataset
@@ -149,6 +151,8 @@ object Main extends App {
     }.compile.toVector.unsafeRunSync()
 
   println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
+
+  println(s"elapsed: ${(System.currentTimeMillis() - start) / 1000.0} seconds")
 
 
 }
