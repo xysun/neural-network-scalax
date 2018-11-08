@@ -7,8 +7,10 @@ import scala.math.{E, log, pow}
 class LogisticRegression extends NeuralNetwork {
 
   def forwardProp(weights: Vector[Double], bias:Double, image:Matrix2D[Double]):Double = {
+
     val z = weights.zip(image.flatten).map{case (w,x) => w*x}.sum + bias
     1 / (1 + pow(E, -z))
+    
   }
 
   def backProp(yHat:Double, y:Int, image:Matrix2D[Double]):(Vector[Double], Double) = {
@@ -18,8 +20,10 @@ class LogisticRegression extends NeuralNetwork {
     // dLoss/dZ
     val a = (1-2*y)*z
     val d1 = 1 / (1 + pow(E, a)) * pow(E, a) * (1-2*y)
+
     // dZ/dyHat
     val d2 = 1 / (yHat * (1-yHat))
+
     // dYHat/dz
     val d3 = yHat * (1-yHat)
 

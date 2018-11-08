@@ -19,9 +19,25 @@ key components/concepts:
     - evolution of error rates
     - convnet
 
+check Tensorflow interface;
+implement MNIST in Tensorflow and compare speed
+
 What's new in neural network:
 - nonlinear function approximation
 
+
+Computation Graph
+tensorflow whitepaper: https://www.tensorflow.org/about/bib#tensorflow_a_system_for_large-scale_machine_learning
+http://colah.github.io/posts/2015-08-Backprop/
+http://download.tensorflow.org/paper/white_paper_tf_control_flow_implementation_2017_11_1.pdf
+
+Backprop:
+- makes training neural network feasible
+- technique to calculate derivatives quickly
+- derivatives are unintuitively cheap
+- use State monad to store calculated derivatives
+- node is definitely a container
+- for graph, scala is great for data modeling
 
 Type is great! easier to debug
 Interface and inheritance is great!
@@ -37,3 +53,15 @@ But why?
     - native support for parallel numerical computation on gpu
     - typed, higher kind support, basic FP
     - easy to notebook: plot, notebook should be git friendly
+
+Goal in talk
+- dymystify neural network
+- show how "general" and how extensible this idea is: you can stack up arbitrary neurons and activation functions
+
+composability: matmul + add => Linear layer; compare with Keras api
+
+possible questions:
+- SGD
+- what is the use of optimizer?
+
+can't really shuffle
