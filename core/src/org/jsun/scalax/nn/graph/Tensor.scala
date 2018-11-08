@@ -10,12 +10,41 @@ object Tensor {
 
   case class Scalar(v: Double) extends Tensor
 
-  case class TVector(v: Vector[Double]) extends Tensor
+  // row x column
+  case class Matrix(m: Vector[Vector[Double]]) extends Tensor {
+    val shape:(Int, Int) = (m.size, m.head.size)
+
+    def add(other:Matrix):Matrix = {
+      require(shape == other.shape)
+
+      val res = Vector.tabulate(shape._1, shape._2){case (i,j) =>
+        m(i)(j) + other.m(i)(j)
+      }
+      Matrix(res)
+    }
+
+    def multiply(other:Matrix):Tensor = {
+      require(shape._2 == other.shape._1)
+      val dimension = (shape._1, other.shape._2)
+
+      val res = Vector.tabulate(dimension._1, dimension._2){case (i,j) => {
+        // ith row * jth column
+        val rowi = m(i)
+        val colj = other.m.map(_.apply(j))
+        rowi.zip(colj).map(t => t._1 * t._2).sum
+      }}
+
+      if (dimension == (1,1)) Scalar(res(0)(0))
+      else Matrix(res)
+
+    }
+
+  }
 
   object Tensor {
     def add(t1:Tensor, t2:Tensor):Tensor = (t1, t2) match {
       case (Scalar(v1), Scalar(v2)) => Scalar(v1 + v2)
-      case (TVector(v1), TVector(v2)) => TVector(v1.zip(v2).map(t => t._1 + t._2))
+      case (m1:Matrix, m2:Matrix) => m1.add(m2)
     }
   }
 
@@ -31,11 +60,9 @@ object Tensor {
     def f(n:Node):Tensor
   }
 
-  case object CrossProduct extends BinaryOp {
+  case object MatMul extends BinaryOp {
     override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match {
-      case (TVector(v1), TVector(v2)) => Scalar(
-        v1.zip(v2).map(t => t._1 * t._2).sum
-      )
+      case (m1:Matrix, m2:Matrix) => m1.multiply(m2)
     }
 
     override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor = {
@@ -44,7 +71,26 @@ object Tensor {
       require(other.size == 1)
 
       (g, other.head.v) match {
-        case (Scalar(v), TVector(t)) => TVector(t.map(_ * v))
+        case (Scalar(v), m:Matrix) => {
+          // other must be a vector, then reverse it
+          if (m.shape._1 == 1){ // other is 1xn, so we want nx1
+            val res = Vector.tabulate(m.shape._2, 1){case (i,j) => v * m.m(j)(i)}
+            Matrix(res)
+          } else if (m.shape._2 == 1){ // other is nx1, so we want 1xn
+            val res = Vector.tabulate(1, m.shape._1){case (i,j) => v * m.m(j)(i)}
+            Matrix(res)
+          } else {
+            throw new Exception(s"the other matrix must be a 1d vector! ${m.shape}")
+          }
+        }
+
+        case (m1:Matrix, m2:Matrix) => {
+          require(m1.shape._2 == 1 && m2.shape._2 == 1)
+          val res = Vector.tabulate(m1.shape._1, m2.shape._1) {case (i,j) => {
+            m1.m(i)(0) * m2.m(j)(0)
+          }}
+          Matrix(res)
+      }
       }
     }
   }
@@ -54,7 +100,7 @@ object Tensor {
 
     override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match {
       case (Scalar(v1), Scalar(v2)) => Scalar(v1+v2)
-      case (TVector(v1), TVector(v2)) => TVector(v1.zip(v2).map(t => t._1 + t._2))
+      case (m1:Matrix, m2:Matrix) => m1.add(m2)
     }
   }
 
@@ -75,16 +121,34 @@ object Tensor {
   }
 
     case object Sigmoid extends SingleOp{
-      override def f(n: Node): Scalar = n.v match {
-        case Scalar(v) => Scalar(1 / (1 + math.pow(math.E, -1 * v)))
+
+      private def forward(v:Double) = 1 / (1 + math.pow(math.E, -1*v))
+      private def backward(v:Double) = {
+        val y = forward(v)
+        y * (1-y)
       }
 
-      override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor =  g match {
-        case Scalar(v) =>
-          val y = f(x)
-          Scalar(v * y.v * (1-y.v))
+      override def f(n: Node): Tensor = n.v match {
+        case Scalar(v) => Scalar(forward(v))
+        case Matrix(m) => Matrix(m.map(_.map(forward)))
       }
-    }
+
+      override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor =
+
+        (f(x), g) match {
+          case (Scalar(y), Scalar(v)) => Scalar(v * y * (1 - y))
+          case (m1: Matrix, m2: Matrix) => {
+            require(m1.shape == m2.shape)
+            val res = Vector.tabulate(m1.shape._1, m1.shape._2) { case (i, j) => {
+              val y = m1.m(i)(j)
+              val v = m2.m(i)(j)
+              v * y * (1 - y)
+            }
+            }
+            Matrix(res)
+          }
+        }
+      }
 
     case object CrossEntropyLoss extends BinaryOp{
       override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match { // order is important

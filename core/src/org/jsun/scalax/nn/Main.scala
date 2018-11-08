@@ -91,7 +91,7 @@ object Main extends App {
   }
 
   val graph = for {
-    _ <- BinaryStateNode(CrossProduct)
+    _ <- BinaryStateNode(MatMul)
     _ <- BinaryStateNode(Add)
     ans <- BinaryStateNode(CrossEntropyLoss)
   } yield ans
@@ -99,12 +99,12 @@ object Main extends App {
   val trainSinkWithGraph: (Param, Chunk[(Int, Matrix2D[Double])]) => Param = {
     case ((weights, bias), chk) =>
 
-      val w = Node("w", TVector(weights), Ident)
+      val w = Node("w", Matrix(Vector(weights)), Ident)
       val b = Node("b", Scalar(bias), Ident)
 
       val a =
         chk.map { case (_y, img) =>
-          val x = Node("x", TVector(img.flatten), Ident)
+          val x = Node("x", Matrix(img.flatten.map(Vector(_))), Ident)
           val y = Node("y", Scalar(_y), Ident)
           val args = List(w, x, b, y)
 
@@ -114,7 +114,7 @@ object Main extends App {
           require(nodes.size == 1)
           val gradients = g.backProp(List(w, b), nodes.head)
 
-          (gradients("w").asInstanceOf[TVector].v, gradients("b").asInstanceOf[Scalar].v, loss.asInstanceOf[Scalar].v)
+          (gradients("w").asInstanceOf[Matrix].m, gradients("b").asInstanceOf[Scalar].v, loss.asInstanceOf[Scalar].v)
         }
 
       val wGradients = a.map(_._1)
@@ -127,6 +127,7 @@ object Main extends App {
       val avgBiasGradient = bGradients.toVector.sum / chk.size
 
       val sumWeightsGradient = wGradients.toVector
+          .map(_.head) // we know it's 1x784
         .reduce[Vector[Double]] { case (v1, v2) => v1.zip(v2).map(t => t._1 + t._2) }
 
       val avgWeightsGradient = sumWeightsGradient.map(_ / chk.size)
