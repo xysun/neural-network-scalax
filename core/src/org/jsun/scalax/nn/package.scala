@@ -18,4 +18,14 @@ package object nn {
       }
   }
 
+  implicit class EnrichedVectorVector(v:Vector[Vector[Double]]) {
+    def minus(other:Vector[Vector[Double]]): Vector[Vector[Double]] = {
+      require(v.size == other.size && v.head.size == other.head.size)
+      val dimension = (v.size, v.head.size)
+      Vector.tabulate(dimension._1, dimension._2){case (i,j) => {
+        v(i)(j) - other(i)(j)
+      }}
+    }
+  }
+
 }

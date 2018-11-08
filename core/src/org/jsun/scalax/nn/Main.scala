@@ -21,32 +21,42 @@ object Main extends App {
   val trainLabelFileName = "/Users/xiayunsun/Downloads/train-labels-idx1-ubyte"
   val trainImgFileName = "/Users/xiayunsun/Downloads/train-images-idx3-ubyte"
 
-  val trainLabels: fs2.Stream[IO, Int] = // todo: must we use IO?
-    io.file
-      .readAll[IO](path = Paths.get(trainLabelFileName), global, chunkSize = 1024)
-      .drop(8) // skip magic number and size
-      .map(_.toInt)
+  val testImgFileName = "/Users/xiayunsun/Downloads/t10k-images-idx3-ubyte"
+  val testLabelFileName = "/Users/xiayunsun/Downloads/t10k-labels-idx1-ubyte"
 
-  private val imgDimension = 28
-  val trainImages: fs2.Stream[IO, Matrix2D[Int]] =
-    io.file
-      .readAll[IO](path = Paths.get(trainImgFileName), global, chunkSize = 1024) // each img is 784 bytes
-      .drop(16) // 8 more bytes for number of rows and number of columns
-      .map(java.lang.Byte.toUnsignedInt) // java is big endian
-      .chunkN(imgDimension * imgDimension, allowFewer = false)
-      .map(_.toVector)
-      .map(_.toMatrix2D(rows = imgDimension, cols = imgDimension))
+  def prepTrainData(labelFileName:String, imgFileName:String):fs2.Stream[IO, (Int, Matrix2D[Double])] = {
+    val trainLabels: fs2.Stream[IO, Int] = // todo: must we use IO?
+      io.file
+        .readAll[IO](path = Paths.get(labelFileName), global, chunkSize = 1024)
+        .drop(8) // skip magic number and size
+        .map(_.toInt)
 
-  //  val trainData: fs2.Stream[IO, (Int, Matrix2D[Int])] = trainLabels.zip(trainImages)
+    val imgDimension = 28
+    val trainImages: fs2.Stream[IO, Matrix2D[Int]] =
+      io.file
+        .readAll[IO](path = Paths.get(imgFileName), global, chunkSize = 1024) // each img is 784 bytes
+        .drop(16) // 8 more bytes for number of rows and number of columns
+        .map(java.lang.Byte.toUnsignedInt) // java is big endian
+        .chunkN(imgDimension * imgDimension, allowFewer = false)
+        .map(_.toVector)
+        .map(_.toMatrix2D(rows = imgDimension, cols = imgDimension))
 
-  // optional: sanity check
-  //  Preprocessor.sanityCheck(trainLabels, trainImages)
+    //  val trainData: fs2.Stream[IO, (Int, Matrix2D[Int])] = trainLabels.zip(trainImages)
 
-  // proprocess: x /= 255. y: binary classifier on digit 0
-  val trainImagesPreprocessed: fs2.Stream[IO, Matrix2D[Double]] = trainImages.map(_.mmap(_ / 255.0))
-  val trainLabelsPreprocessed: fs2.Stream[IO, Int] = trainLabels.map(i => if (i == 0) 1 else 0)
+    // optional: sanity check
+    //  Preprocessor.sanityCheck(trainLabels, trainImages)
 
-  val trainData: fs2.Stream[IO, (Int, Matrix2D[Double])] = trainLabelsPreprocessed.zip(trainImagesPreprocessed)
+    // proprocess: x /= 255. y: binary classifier on digit 0
+    val trainImagesPreprocessed: fs2.Stream[IO, Matrix2D[Double]] = trainImages.map(_.mmap(_ / 255.0))
+    val trainLabelsPreprocessed: fs2.Stream[IO, Int] = trainLabels.map(i => if (i == 0) 1 else 0)
+
+    trainLabelsPreprocessed.zip(trainImagesPreprocessed)
+  }
+
+  val trainData = prepTrainData(trainLabelFileName, trainImgFileName)
+  val testData = prepTrainData(testLabelFileName, testImgFileName)
+
+
 
   // shuffle training data: todo
 
@@ -54,6 +64,20 @@ object Main extends App {
   // todo: can we get rid of var?
   val initialWeights = Vector.tabulate(784)(_ => 0.01)
   val initialBias: Double = 0
+
+  case class Parameters(
+                       w1: Matrix,
+                       b1:Matrix,
+                       w2:Matrix,
+                       b2:Scalar
+                       )
+
+  val initParameters = Parameters(
+    w1 = Matrix(Vector.tabulate(64,784)((x,y) => 0.01)),
+    b1 = Matrix(Vector.tabulate(64,1)((x,y) => 0)),
+    w2 = Matrix(Vector.tabulate(1, 64)((x,y) => 0.01)),
+    b2 = Scalar(0)
+  )
 
   type Param = (Vector[Double], Double)
 
@@ -92,6 +116,15 @@ object Main extends App {
 
   val graph = for {
     _ <- BinaryStateNode(MatMul)
+    _ <- BinaryStateNode(Add)
+    ans <- BinaryStateNode(CrossEntropyLoss)
+  } yield ans
+
+  val graphWithHiddenLayer = for {
+    _ <- BinaryStateNode(MatMul)
+    _ <- BinaryStateNode(Add)
+    _ <- SingleStateNode(Sigmoid)
+    _ <- BinaryStateNode(RevMatMul)
     _ <- BinaryStateNode(Add)
     ans <- BinaryStateNode(CrossEntropyLoss)
   } yield ans
@@ -138,18 +171,111 @@ object Main extends App {
       )
   }
 
-  val (trainedWeights, trainedBias) =
-    trainData.chunkN(batchSize).fold((initialWeights, initialBias))(trainSinkWithGraph).compile.toVector.unsafeRunSync()
+  val trainSinkWithHiddenLayer: (Parameters, Chunk[(Int, Matrix2D[Double])]) => Parameters = {
+    case (parameters, chk) =>
+
+      val w1 = Node("w1", parameters.w1, Ident) // 64x784
+      val b1 = Node("b1", parameters.b1, Ident) // 64x1
+      val w2 = Node("w2", parameters.w2, Ident) // 1x64
+      val b2 = Node("b2", parameters.b2, Ident) // 1
+
+      val a =
+        chk.map { case (_y, img) =>
+          val x = Node("x", Matrix(img.flatten.map(Vector(_))), Ident)
+          val y = Node("y", Scalar(_y), Ident)
+          val args = List(w1, x, b1, w2, b2, y)
+
+          val init = (args, emptyGraph(args))
+
+          val ((nodes, g), loss) = graphWithHiddenLayer.run(init).value
+          require(nodes.size == 1)
+          val gradients = g.backProp(List(w1, b1, w2, b2), nodes.head)
+
+          (gradients("w1").asInstanceOf[Matrix].m,
+            gradients("b1").asInstanceOf[Matrix].m,
+            gradients("w2").asInstanceOf[Matrix].m,
+            gradients("b2").asInstanceOf[Scalar].v,
+            loss.asInstanceOf[Scalar].v)
+        }
+
+      val w1Gradients:Chunk[Vector[Vector[Double]]] = a.map(_._1) // 64x784
+      val b1Gradients:Chunk[Vector[Vector[Double]]] = a.map(_._2) // 64x1
+      val w2Gradients:Chunk[Vector[Vector[Double]]] = a.map(_._3) // 1x64
+      val b2Gradients:Chunk[Double] = a.map(_._4)
+      val losses:Chunk[Double] = a.map(_._5)
+
+      val avgLoss = losses.toVector.sum / chk.size
+      println(s"avg loss: $avgLoss")
+
+      val avgB2Gradient = b2Gradients.toVector.sum / chk.size
+
+      val sumW2Gradients:Vector[Vector[Double]] = w2Gradients.toVector.reduce[Vector[Vector[Double]]]{case (v1,v2) => Matrix(v1).add(Matrix(v2)).m}
+      val avgW2Gradient = sumW2Gradients.map(_.map(_ / chk.size * learningRate))
+
+      val sumW1Gradients:Vector[Vector[Double]] = w1Gradients.toVector.reduce[Vector[Vector[Double]]]{case (v1,v2) => Matrix(v1).add(Matrix(v2)).m}
+      val avgW1Gradient = sumW1Gradients.map(_.map(_ / chk.size * learningRate))
+
+      val sumB1Gradients:Vector[Vector[Double]] = b1Gradients.toVector.reduce[Vector[Vector[Double]]]{case (v1,v2) => Matrix(v1).add(Matrix(v2)).m}
+      val avgB1Gradient = sumB1Gradients.map(_.map(_ / chk.size * learningRate))
+
+      Parameters(
+        w1 = Matrix(parameters.w1.m.minus(avgW1Gradient)),
+        b1 = Matrix(parameters.b1.m.minus(avgB1Gradient)),
+        w2 = Matrix(parameters.w2.m.minus(avgW2Gradient)),
+        b2 = Scalar(parameters.b2.v - learningRate * avgB2Gradient)
+      )
+  }
+
+//  val (trainedWeights, trainedBias) =
+//    trainData.chunkN(batchSize).fold((initialWeights, initialBias))(trainSinkWithGraph).compile.toVector.unsafeRunSync()
+//      .head
+
+  val trainedParameters:Parameters =
+    trainData.take(10000).chunkN(batchSize).fold(initParameters)(trainSinkWithHiddenLayer).compile.toVector.unsafeRunSync()
       .head
 
-  // training error
-  val prediction =
-    trainData.map { case (y, img) => {
-      val yHat = network.forwardProp(trainedWeights, trainedBias, img)
-      val prediction = if (yHat > 0.5) 1 else 0
-      y == prediction
-    }
-    }.compile.toVector.unsafeRunSync()
+  // training error for logistic regression
+  print("check prediction...")
+
+//  val prediction =
+//    testData.map { case (y, img) => {
+//      val yHat = network.forwardProp(trainedWeights, trainedBias, img)
+//      val prediction = if (yHat > 0.5) 1 else 0
+//      y == prediction
+//    }
+//    }.compile.toVector.unsafeRunSync()
+//
+//  println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
+
+  // prediction for hidden layer
+  val predictionGraph = for {
+    _ <- BinaryStateNode(MatMul)
+    _ <- BinaryStateNode(Add)
+    _ <- SingleStateNode(Sigmoid)
+    _ <- BinaryStateNode(RevMatMul)
+    _ <- BinaryStateNode(Add)
+    ans <- SingleStateNode(Sigmoid)
+  } yield ans
+
+  println("now prediction...")
+  val prediction = trainData.map{case (_y, img) => {
+    val w1 = Node("w1", trainedParameters.w1, Ident) // 64x784
+    val b1 = Node("b1", trainedParameters.b1, Ident) // 64x1
+    val w2 = Node("w2", trainedParameters.w2, Ident) // 1x64
+    val b2 = Node("b2", trainedParameters.b2, Ident) // 1
+
+    val x = Node("x", Matrix(img.flatten.map(Vector(_))), Ident)
+    val y = Node("y", Scalar(_y), Ident)
+    val args = List(w1, x, b1, w2, b2, y)
+
+    val init = (args, emptyGraph(args))
+
+    val (_, yHat) = predictionGraph.run(init).value
+
+    val pred = if (yHat.asInstanceOf[Scalar].v > 0.5) 1 else 0
+    _y == pred
+
+  }}.compile.toVector.unsafeRunSync()
 
   println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
 

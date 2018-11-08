@@ -95,6 +95,16 @@ object Tensor {
     }
   }
 
+  case object RevMatMul extends BinaryOp {
+
+    // hack because we require an ordered stack of input nodes
+    override def f(n1: Node, n2: Node): Tensor = MatMul.f(n2,n1)
+
+    override def bprop(inputs: List[Node], x: Node, g: Tensor): Tensor = {
+      MatMul.bprop(inputs, x, g)
+    }
+  }
+
   case object Add extends BinaryOp {
     override def bprop(inputs: List[Node], x: Node, g: Tensor) = g
 
