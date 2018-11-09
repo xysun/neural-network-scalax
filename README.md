@@ -65,3 +65,12 @@ possible questions:
 - what is the use of optimizer?
 
 can't really shuffle
+
+anecdote: i generalised from Double (Scalar) to Vector, then to Matrix, both succeeded in one go;
+guess that's what type gives you
+
+notice one hidden layer reduce loss very quickly
+
+plot loss
+
+test accuracy: 98.99%
