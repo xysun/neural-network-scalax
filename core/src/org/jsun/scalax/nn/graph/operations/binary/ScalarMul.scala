@@ -1,6 +1,6 @@
 package org.jsun.scalax.nn.graph.operations.binary
 
-import org.jsun.scalax.nn.datatypes.{Scalar, Tensor}
+import org.jsun.scalax.nn.datatypes.{ Scalar, Tensor }
 import org.jsun.scalax.nn.graph.Node
 import org.jsun.scalax.nn.graph.operations.BinaryOp
 
@@ -16,6 +16,6 @@ case object ScalarMulti extends BinaryOp {
   }
 
   override def f(n1: Node, n2: Node): Tensor = (n1.v, n2.v) match {
-    case (Scalar(v1), Scalar(v2)) => Scalar(v1*v2)
+    case (Scalar(v1), Scalar(v2)) => Scalar(v1 * v2)
   }
 }

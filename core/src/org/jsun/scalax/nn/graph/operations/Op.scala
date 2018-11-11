@@ -8,14 +8,13 @@ sealed trait Op {
 }
 
 trait BinaryOp extends Op {
-  def f(n1:Node, n2:Node):Tensor
+  def f(n1: Node, n2: Node): Tensor
 }
 
 trait SingleOp extends Op {
-  def f(n:Node):Tensor
+  def f(n: Node): Tensor
 }
 
 case object Ident extends Op {
   override def bprop(inputs: List[Node], x: Node, g: Tensor) = g
 }
-

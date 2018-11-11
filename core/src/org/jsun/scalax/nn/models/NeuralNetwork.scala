@@ -1,13 +1,13 @@
 package org.jsun.scalax.nn.models
 
-import org.jsun.scalax.nn.Matrix2D
+import org.jsun.scalax.nn.datatypes.Matrix
 
 trait NeuralNetwork {
 
-  def forwardProp(weights: Vector[Double], bias:Double, image:Matrix2D[Double]):Double
+  def forwardProp(weights: Vector[Double], bias: Double, image: Matrix): Double
 
-  def backProp(yHat:Double, y:Int, image:Matrix2D[Double]):(Vector[Double], Double)
+  def backProp(yHat: Double, y: Int, image: Matrix): (Vector[Double], Double)
 
-  def loss(yHat:Double, y:Int):Double
+  def loss(yHat: Double, y: Int): Double
 
 }
