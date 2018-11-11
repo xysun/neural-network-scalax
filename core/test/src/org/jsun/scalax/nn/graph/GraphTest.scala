@@ -1,6 +1,8 @@
 package org.jsun.scalax.nn.graph
 
-import org.jsun.scalax.nn.graph.Tensor._
+import org.jsun.scalax.nn.datatypes._
+import org.jsun.scalax.nn.graph.operations.Ident
+import org.jsun.scalax.nn.graph.operations.binary.{Add, ScalarMulti}
 import org.scalatest.FunSuite
 
 class GraphTest extends FunSuite{
@@ -42,7 +44,7 @@ class GraphTest extends FunSuite{
 
     val compute = for {
       _ <- BinaryStateNode(Add)
-      ans <- BinaryStateNode(ScalarMultiOp)
+      ans <- BinaryStateNode(ScalarMulti)
     } yield ans
 
     val ((finalNodes, finalGraph), ans) = compute.run(init).value

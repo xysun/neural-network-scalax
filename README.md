@@ -58,7 +58,7 @@ Goal in talk
 - dymystify neural network
 - show how "general" and how extensible this idea is: you can stack up arbitrary neurons and activation functions
 
-composability: matmul + add => Linear layer; compare with Keras api
+composability: matmul + add => Linear layer; compare with Keras api https://www.tensorflow.org/tutorials/
 
 possible questions:
 - SGD

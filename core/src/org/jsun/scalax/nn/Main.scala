@@ -5,7 +5,12 @@ import java.nio.file.Paths
 import cats.effect.{ContextShift, IO}
 import fs2.{Chunk, io}
 import org.jsun.scalax.nn.models.{LogisticRegression, NeuralNetwork}
-import org.jsun.scalax.nn.graph.Tensor._
+import org.jsun.scalax.nn.datatypes._
+import org.jsun.scalax.nn.graph.{Node, BinaryStateNode, SingleStateNode}
+import org.jsun.scalax.nn.graph.operations.Ident
+import org.jsun.scalax.nn.graph.emptyGraph
+import org.jsun.scalax.nn.graph.operations.binary._
+import org.jsun.scalax.nn.graph.operations.single._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -117,7 +122,7 @@ object Main extends App {
   val graph = for {
     _ <- BinaryStateNode(MatMul)
     _ <- BinaryStateNode(Add)
-    ans <- BinaryStateNode(CrossEntropyLoss)
+    ans <- BinaryStateNode(CrossEntropy)
   } yield ans
 
   val graphWithHiddenLayer = for {
@@ -126,7 +131,7 @@ object Main extends App {
     _ <- SingleStateNode(Sigmoid)
     _ <- BinaryStateNode(RevMatMul)
     _ <- BinaryStateNode(Add)
-    ans <- BinaryStateNode(CrossEntropyLoss)
+    ans <- BinaryStateNode(CrossEntropy)
   } yield ans
 
   val trainSinkWithGraph: (Param, Chunk[(Int, Matrix2D[Double])]) => Param = {
@@ -226,58 +231,58 @@ object Main extends App {
       )
   }
 
-//  val (trainedWeights, trainedBias) =
-//    trainData.chunkN(batchSize).fold((initialWeights, initialBias))(trainSinkWithGraph).compile.toVector.unsafeRunSync()
-//      .head
-
-  val trainedParameters:Parameters =
-    trainData.take(10000).chunkN(batchSize).fold(initParameters)(trainSinkWithHiddenLayer).compile.toVector.unsafeRunSync()
+  val (trainedWeights, trainedBias) =
+    trainData.chunkN(batchSize).fold((initialWeights, initialBias))(trainSink).compile.toVector.unsafeRunSync()
       .head
+
+//  val trainedParameters:Parameters =
+//    trainData.take(10000).chunkN(batchSize).fold(initParameters)(trainSinkWithHiddenLayer).compile.toVector.unsafeRunSync()
+//      .head
 
   // training error for logistic regression
   print("check prediction...")
 
-//  val prediction =
-//    testData.map { case (y, img) => {
-//      val yHat = network.forwardProp(trainedWeights, trainedBias, img)
-//      val prediction = if (yHat > 0.5) 1 else 0
-//      y == prediction
-//    }
-//    }.compile.toVector.unsafeRunSync()
-//
-//  println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
-
-  // prediction for hidden layer
-  val predictionGraph = for {
-    _ <- BinaryStateNode(MatMul)
-    _ <- BinaryStateNode(Add)
-    _ <- SingleStateNode(Sigmoid)
-    _ <- BinaryStateNode(RevMatMul)
-    _ <- BinaryStateNode(Add)
-    ans <- SingleStateNode(Sigmoid)
-  } yield ans
-
-  println("now prediction...")
-  val prediction = trainData.map{case (_y, img) => {
-    val w1 = Node("w1", trainedParameters.w1, Ident) // 64x784
-    val b1 = Node("b1", trainedParameters.b1, Ident) // 64x1
-    val w2 = Node("w2", trainedParameters.w2, Ident) // 1x64
-    val b2 = Node("b2", trainedParameters.b2, Ident) // 1
-
-    val x = Node("x", Matrix(img.flatten.map(Vector(_))), Ident)
-    val y = Node("y", Scalar(_y), Ident)
-    val args = List(w1, x, b1, w2, b2, y)
-
-    val init = (args, emptyGraph(args))
-
-    val (_, yHat) = predictionGraph.run(init).value
-
-    val pred = if (yHat.asInstanceOf[Scalar].v > 0.5) 1 else 0
-    _y == pred
-
-  }}.compile.toVector.unsafeRunSync()
+  val prediction =
+    testData.map { case (y, img) => {
+      val yHat = network.forwardProp(trainedWeights, trainedBias, img)
+      val prediction = if (yHat > 0.5) 1 else 0
+      y == prediction
+    }
+    }.compile.toVector.unsafeRunSync()
 
   println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
+
+  // prediction for hidden layer
+//  val predictionGraph = for {
+//    _ <- BinaryStateNode(MatMul)
+//    _ <- BinaryStateNode(Add)
+//    _ <- SingleStateNode(Sigmoid)
+//    _ <- BinaryStateNode(RevMatMul)
+//    _ <- BinaryStateNode(Add)
+//    ans <- SingleStateNode(Sigmoid)
+//  } yield ans
+//
+//  println("now prediction...")
+//  val prediction = trainData.map{case (_y, img) => {
+//    val w1 = Node("w1", trainedParameters.w1, Ident) // 64x784
+//    val b1 = Node("b1", trainedParameters.b1, Ident) // 64x1
+//    val w2 = Node("w2", trainedParameters.w2, Ident) // 1x64
+//    val b2 = Node("b2", trainedParameters.b2, Ident) // 1
+//
+//    val x = Node("x", Matrix(img.flatten.map(Vector(_))), Ident)
+//    val y = Node("y", Scalar(_y), Ident)
+//    val args = List(w1, x, b1, w2, b2, y)
+//
+//    val init = (args, emptyGraph(args))
+//
+//    val (_, yHat) = predictionGraph.run(init).value
+//
+//    val pred = if (yHat.asInstanceOf[Scalar].v > 0.5) 1 else 0
+//    _y == pred
+//
+//  }}.compile.toVector.unsafeRunSync()
+//
+//  println(s"correct prediction: ${prediction.count(t => t) / prediction.size.toDouble}")
 
   println(s"elapsed: ${(System.currentTimeMillis() - start) / 1000.0} seconds")
 
