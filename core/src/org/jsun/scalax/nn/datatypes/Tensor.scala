@@ -18,7 +18,7 @@ case class Matrix(m: Vector[Vector[Double]]) extends Tensor {
     Matrix(res)
   }
 
-  def minus(other:Matrix):Matrix = {
+  def minus(other: Matrix): Matrix = {
     require(shape == other.shape)
 
     val res = Vector.tabulate(shape._1, shape._2) {
@@ -50,7 +50,9 @@ case class Matrix(m: Vector[Vector[Double]]) extends Tensor {
 
 object Matrix {
   def fromVector(v: Vector[Double], rows: Int, cols: Int): Matrix =
-    Matrix(Vector.tabulate(rows, cols) { (i, j) => v(cols * i + j)})
+    Matrix(Vector.tabulate(rows, cols) { (i, j) =>
+      v(cols * i + j)
+    })
 }
 
 object Tensor {

@@ -2,7 +2,7 @@ package org.jsun.scalax.nn.models
 
 import org.jsun.scalax.nn.datatypes.Matrix
 
-import scala.math.{E, log, pow}
+import scala.math.{ E, log, pow }
 
 class LogisticRegression extends NeuralNetwork {
 

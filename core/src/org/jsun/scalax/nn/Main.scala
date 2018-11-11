@@ -29,8 +29,7 @@ object Main extends App {
   val testImgFileName   = "/Users/xiayunsun/Downloads/t10k-images-idx3-ubyte"
   val testLabelFileName = "/Users/xiayunsun/Downloads/t10k-labels-idx1-ubyte"
 
-  def prepTrainData(labelFileName: String,
-                    imgFileName: String): fs2.Stream[IO, (Int, Matrix)] = {
+  def prepTrainData(labelFileName: String, imgFileName: String): fs2.Stream[IO, (Int, Matrix)] = {
     val trainLabels: fs2.Stream[IO, Int] = // todo: must we use IO?
       io.file
         .readAll[IO](path = Paths.get(labelFileName), global, chunkSize = 1024)

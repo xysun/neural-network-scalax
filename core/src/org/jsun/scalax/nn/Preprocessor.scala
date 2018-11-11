@@ -1,6 +1,6 @@
 package org.jsun.scalax.nn
 
-import java.io.{File, PrintWriter}
+import java.io.{ File, PrintWriter }
 
 import cats.effect.IO
 import org.jsun.scalax.nn.datatypes.Matrix
@@ -23,7 +23,7 @@ object Preprocessor {
 
     println("[sanity check] export first img so we can view in jupyter...")
     val img: Matrix = images.take(1).compile.toVector.unsafeRunSync()(0)
-    val pw                 = new PrintWriter(new File("img1.csv"))
+    val pw          = new PrintWriter(new File("img1.csv"))
     pw.write(img.m.flatten.mkString("\n"))
     pw.close()
   }
