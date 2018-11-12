@@ -59,5 +59,6 @@ object Tensor {
   def add(t1: Tensor, t2: Tensor): Tensor = (t1, t2) match {
     case (Scalar(v1), Scalar(v2)) => Scalar(v1 + v2)
     case (m1: Matrix, m2: Matrix) => m1.add(m2)
+    case _                        => throw new Exception(s"Incompatible operands: $t1, $t2")
   }
 }

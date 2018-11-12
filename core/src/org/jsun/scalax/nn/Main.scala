@@ -4,7 +4,7 @@ import java.nio.file.Paths
 
 import cats.effect.{ ContextShift, IO }
 import fs2.{ Chunk, io }
-import org.jsun.scalax.nn.models.{ LogisticRegression, NeuralNetwork }
+import org.jsun.scalax.nn.models.{ LogisticRegression, LogisticRegressionUsingGraph, Model }
 import org.jsun.scalax.nn.datatypes._
 import org.jsun.scalax.nn.graph.{ BinaryStateNode, Node, SingleStateNode }
 import org.jsun.scalax.nn.graph.operations.Ident
@@ -16,28 +16,37 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object Main extends App {
 
-  println("hello")
+  /*
+  mill core.run model=$model
+  model:
+  - logicticregression
+  - logisticregression-graph
+  - onehiddenlayer
+   */
+  val modelName = args.headOption.map(_.split("=").apply(1)).getOrElse("logicticregression")
+
+  println(s"model = $modelName")
 
   val start = System.currentTimeMillis()
 
   implicit val ioContextShift: ContextShift[IO] = IO.contextShift(global)
 
   // read MNIST dataset
-  val trainLabelFileName = "/Users/xiayunsun/Downloads/train-labels-idx1-ubyte"
-  val trainImgFileName   = "/Users/xiayunsun/Downloads/train-images-idx3-ubyte"
+  val trainLabelFile = "/Users/xiayunsun/Downloads/train-labels-idx1-ubyte"
+  val trainImgFile   = "/Users/xiayunsun/Downloads/train-images-idx3-ubyte"
 
-  val testImgFileName   = "/Users/xiayunsun/Downloads/t10k-images-idx3-ubyte"
-  val testLabelFileName = "/Users/xiayunsun/Downloads/t10k-labels-idx1-ubyte"
+  val testImgFile   = "/Users/xiayunsun/Downloads/t10k-images-idx3-ubyte"
+  val testLabelFile = "/Users/xiayunsun/Downloads/t10k-labels-idx1-ubyte"
 
   def prepTrainData(labelFileName: String, imgFileName: String): fs2.Stream[IO, (Int, Matrix)] = {
-    val trainLabels: fs2.Stream[IO, Int] = // todo: must we use IO?
+    val labels: fs2.Stream[IO, Int] = // todo: must we use IO? well we do need a Sync type
       io.file
         .readAll[IO](path = Paths.get(labelFileName), global, chunkSize = 1024)
         .drop(8) // skip magic number and size
         .map(_.toInt)
 
     val imgDimension = 28
-    val trainImages: fs2.Stream[IO, Matrix] =
+    val images: fs2.Stream[IO, Matrix] =
       io.file
         .readAll[IO](path = Paths.get(imgFileName), global, chunkSize = 1024) // each img is 784 bytes
         .drop(16) // 8 more bytes for number of rows and number of columns
@@ -46,28 +55,21 @@ object Main extends App {
         .map(_.toVector)
         .map(v => Matrix.fromVector(v.map(_.toDouble), imgDimension, imgDimension))
 
-    //  val trainData: fs2.Stream[IO, (Int, Matrix2D[Int])] = trainLabels.zip(trainImages)
-
     // optional: sanity check
     //  Preprocessor.sanityCheck(trainLabels, trainImages)
 
     // proprocess: x /= 255. y: binary classifier on digit 0
-    val trainImagesPreprocessed: fs2.Stream[IO, Matrix] =
-      trainImages.map(matrix => Matrix(matrix.m.map(_.map(_ / 255.0))))
-    val trainLabelsPreprocessed: fs2.Stream[IO, Int] = trainLabels.map(i => if (i == 0) 1 else 0)
+    val imagesPreprocessed: fs2.Stream[IO, Matrix] =
+      images.map(matrix => Matrix(matrix.m.map(_.map(_ / 255.0))))
+    val labelsPreprocessed: fs2.Stream[IO, Int] = labels.map(i => if (i == 0) 1 else 0)
 
-    trainLabelsPreprocessed.zip(trainImagesPreprocessed)
+    labelsPreprocessed.zip(imagesPreprocessed)
   }
 
-  val trainData = prepTrainData(trainLabelFileName, trainImgFileName)
-  val testData  = prepTrainData(testLabelFileName, testImgFileName)
+  val trainData = prepTrainData(trainLabelFile, trainImgFile)
+  val testData  = prepTrainData(testLabelFile, testImgFile)
 
   // shuffle training data: todo
-
-  // single neuron: W = 784x1, with sigmoid as activation function
-  // todo: can we get rid of var?
-  val initialWeights      = Vector.tabulate(784)(_ => 0.01)
-  val initialBias: Double = 0
 
   case class Parameters(
       w1: Matrix,
@@ -83,46 +85,8 @@ object Main extends App {
     b2 = Scalar(0)
   )
 
-  type Param = (Vector[Double], Double)
-
-  val network: NeuralNetwork = new LogisticRegression
-
   val learningRate = 1
   val batchSize    = 1000
-
-  val trainSink: (Param, Chunk[(Int, Matrix)]) => Param = {
-    case ((weights, bias), chk) =>
-      val ys     = chk.map(_._1)
-      val yHats  = chk.map { case (y, img) => network.forwardProp(weights, bias, img) }
-      val losses = yHats.zip(ys).map { case (yHat, y) => network.loss(yHat, y) }
-
-      val avgLoss = losses.toVector.sum / chk.size
-      println(s"avg loss for chunk: $avgLoss")
-
-      val gradients: Chunk[(Vector[Double], Double)] =
-        yHats.zip(chk).map { case (yHat, (y, img)) => network.backProp(yHat, y, img) }
-
-      val avgBiasGradient = gradients.map(_._2).toVector.sum / chk.size
-
-      val sumWeightsGradient = gradients
-        .map(_._1)
-        .toVector
-        .reduce[Vector[Double]] { case (v1, v2) => v1.zip(v2).map(t => t._1 + t._2) }
-
-      val avgWeightsGradient = sumWeightsGradient.map(_ / chk.size)
-
-      (
-        weights.zip(avgWeightsGradient).map { case (w, g) => w - learningRate * g },
-        bias - learningRate * avgBiasGradient
-      )
-
-  }
-
-  val graph = for {
-    _   <- BinaryStateNode(MatMul)
-    _   <- BinaryStateNode(Add)
-    ans <- BinaryStateNode(CrossEntropy)
-  } yield ans
 
   val graphWithHiddenLayer = for {
     _   <- BinaryStateNode(MatMul)
@@ -132,50 +96,6 @@ object Main extends App {
     _   <- BinaryStateNode(Add)
     ans <- BinaryStateNode(CrossEntropy)
   } yield ans
-
-  val trainSinkWithGraph: (Param, Chunk[(Int, Matrix)]) => Param = {
-    case ((weights, bias), chk) =>
-      val w = Node("w", Matrix(Vector(weights)), Ident)
-      val b = Node("b", Scalar(bias), Ident)
-
-      val a =
-        chk.map {
-          case (_y, img) =>
-            val x    = Node("x", Matrix(img.m.flatten.map(Vector(_))), Ident)
-            val y    = Node("y", Scalar(_y), Ident)
-            val args = List(w, x, b, y)
-
-            val init = (args, emptyGraph(args))
-
-            val ((nodes, g), loss) = graph.run(init).value
-            require(nodes.size == 1)
-            val gradients = g.backProp(List(w, b), nodes.head)
-
-            (gradients("w").asInstanceOf[Matrix].m,
-             gradients("b").asInstanceOf[Scalar].v,
-             loss.asInstanceOf[Scalar].v)
-        }
-
-      val wGradients = a.map(_._1)
-      val bGradients = a.map(_._2)
-      val losses     = a.map(_._3)
-
-      val avgLoss = losses.toVector.sum / chk.size
-      println(s"avg loss: $avgLoss")
-
-      val avgBiasGradient = bGradients.toVector.sum / chk.size
-
-      val sumWeightsGradient = wGradients.toVector
-        .map(_.head) // we know it's 1x784
-        .reduce[Vector[Double]] { case (v1, v2) => v1.zip(v2).map(t => t._1 + t._2) }
-
-      val avgWeightsGradient = sumWeightsGradient.map(_ / chk.size)
-
-      (
-        weights.zip(avgWeightsGradient).map { case (w, g) => w - learningRate * g },
-        bias - learningRate * avgBiasGradient
-      )
-  }
 
   val trainSinkWithHiddenLayer: (Parameters, Chunk[(Int, Matrix)]) => Parameters = {
     case (parameters, chk) =>
@@ -241,10 +161,15 @@ object Main extends App {
       )
   }
 
-  val (trainedWeights, trainedBias) =
+  val model: Model = modelName match {
+    case "logisticregression"       => new LogisticRegression
+    case "logisticregression-graph" => new LogisticRegressionUsingGraph
+  }
+
+  val trained =
     trainData
       .chunkN(batchSize)
-      .fold((initialWeights, initialBias))(trainSinkWithGraph)
+      .fold(model.initialWeights)(model.trainChunk)
       .compile
       .toVector
       .unsafeRunSync()
@@ -261,7 +186,7 @@ object Main extends App {
     testData
       .map {
         case (y, img) => {
-          val yHat       = network.forwardProp(trainedWeights, trainedBias, img)
+          val yHat       = model.predict(trained, img)
           val prediction = if (yHat > 0.5) 1 else 0
           y == prediction
         }
