@@ -47,7 +47,7 @@ object Main extends App {
   val trainedWeights =
     trainData
       .chunkN(batchSize)
-      .fold(model.initialWeights)(model.trainChunk)
+      .fold(model.initialWeights)(model.trainBatch)
       .compile
       .toVector
       .unsafeRunSync()

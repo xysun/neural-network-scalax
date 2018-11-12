@@ -29,7 +29,7 @@ class LogisticRegressionUsingGraph extends Model {
     ans <- SingleStateNode(Sigmoid)
   } yield ans
 
-  override def trainChunk
+  override def trainBatch
     : ((Vector[Double], Double), Chunk[(Int, Matrix)]) => (Vector[Double], Double) = {
     case ((weights, bias), chk) =>
       val w = Node("w", Matrix(Vector(weights)), Ident)

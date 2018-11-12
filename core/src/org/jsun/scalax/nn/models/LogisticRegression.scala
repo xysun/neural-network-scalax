@@ -20,7 +20,7 @@ class LogisticRegression extends Model {
 
   private val learningRate = 1
 
-  override def trainChunk
+  override def trainBatch
     : ((Vector[Double], Double), Chunk[(Int, Matrix)]) => (Vector[Double], Double) = {
     case ((weights, bias), chk) =>
       val ys     = chk.map(_._1)

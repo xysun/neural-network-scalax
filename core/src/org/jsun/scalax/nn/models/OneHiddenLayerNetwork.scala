@@ -45,7 +45,7 @@ class OneHiddenLayerNetwork extends Model {
     ans <- SingleStateNode(Sigmoid)
   } yield ans
 
-  override def trainChunk: (Parameters, Chunk[(Int, Matrix)]) => Parameters = {
+  override def trainBatch: (Parameters, Chunk[(Int, Matrix)]) => Parameters = {
     case (parameters, _chk) =>
 
       // stupid SGD
