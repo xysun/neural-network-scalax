@@ -36,6 +36,7 @@ object Preprocessor {
     // proprocess: x /= 255. y: binary classifier on digit 0
     val imagesPreprocessed: fs2.Stream[IO, Matrix] =
       images.map(matrix => Matrix(matrix.m.map(_.map(_ / 255.0))))
+
     val labelsPreprocessed: fs2.Stream[IO, Int] = labels.map(i => if (i == 0) 1 else 0)
 
     labelsPreprocessed.zip(imagesPreprocessed)

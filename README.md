@@ -76,3 +76,5 @@ plot loss
 test accuracy: 98.99%
 
 explain why one hidden layer is worse: not enough training data (6000 data points, x parameters to tune)
+
+show the wrong prediction images?

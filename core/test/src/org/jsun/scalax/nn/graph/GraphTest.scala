@@ -17,7 +17,7 @@ class GraphTest extends FunSuite{
     val initState = (args, emptyGraph(args))
 
     val g = for {
-      ans <- BinaryStateNode(Add)
+      ans <- BinaryNode(Add)
     } yield ans
 
     val ((finalNodes, finalGraph), ans) = g.run(initState).value
@@ -43,8 +43,8 @@ class GraphTest extends FunSuite{
     val init = (args, emptyGraph(args))
 
     val compute = for {
-      _ <- BinaryStateNode(Add)
-      ans <- BinaryStateNode(ScalarMulti)
+      _ <- BinaryNode(Add)
+      ans <- BinaryNode(ScalarMulti)
     } yield ans
 
     val ((finalNodes, finalGraph), ans) = compute.run(init).value
