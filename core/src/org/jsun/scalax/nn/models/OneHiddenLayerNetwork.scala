@@ -3,7 +3,7 @@ package org.jsun.scalax.nn.models
 import fs2.Chunk
 import org.jsun.scalax.nn.datatypes.{Matrix, Scalar}
 import org.jsun.scalax.nn.graph.operations.Ident
-import org.jsun.scalax.nn.graph.{BinaryNode, Node, SingleNode, emptyGraph}
+import org.jsun.scalax.nn.graph.{BinaryStep, Node, Unarystep, emptyGraph}
 import org.jsun.scalax.nn.graph.operations.binary.{Add, CrossEntropy, MatMul, RevMatMul}
 import org.jsun.scalax.nn.graph.operations.single.Sigmoid
 
@@ -28,21 +28,21 @@ class OneHiddenLayerNetwork extends Model {
   )
 
   private val trainGraph = for {
-    _   <- BinaryNode(MatMul)
-    _   <- BinaryNode(Add)
-    _   <- SingleNode(Sigmoid)
-    _   <- BinaryNode(RevMatMul)
-    _   <- BinaryNode(Add)
-    ans <- BinaryNode(CrossEntropy)
+    _   <- BinaryStep(MatMul)
+    _   <- BinaryStep(Add)
+    _   <- Unarystep(Sigmoid)
+    _   <- BinaryStep(RevMatMul)
+    _   <- BinaryStep(Add)
+    ans <- BinaryStep(CrossEntropy)
   } yield ans
 
   private val predictionGraph = for {
-    _ <- BinaryNode(MatMul)
-    _ <- BinaryNode(Add)
-    _ <- SingleNode(Sigmoid)
-    _ <- BinaryNode(RevMatMul)
-    _ <- BinaryNode(Add)
-    ans <- SingleNode(Sigmoid)
+    _ <- BinaryStep(MatMul)
+    _ <- BinaryStep(Add)
+    _ <- Unarystep(Sigmoid)
+    _ <- BinaryStep(RevMatMul)
+    _ <- BinaryStep(Add)
+    ans <- Unarystep(Sigmoid)
   } yield ans
 
   override def trainBatch: (Parameters, Chunk[(Int, Matrix)]) => Parameters = {

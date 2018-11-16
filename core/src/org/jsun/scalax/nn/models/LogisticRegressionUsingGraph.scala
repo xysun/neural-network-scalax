@@ -4,7 +4,7 @@ import org.jsun.scalax.nn.datatypes.{ Matrix, Scalar }
 import org.jsun.scalax.nn.graph.operations.Ident
 import org.jsun.scalax.nn.graph.operations.binary.{ Add, CrossEntropy, MatMul }
 import org.jsun.scalax.nn.graph.operations.single.Sigmoid
-import org.jsun.scalax.nn.graph.{ BinaryNode, Node, SingleNode, emptyGraph }
+import org.jsun.scalax.nn.graph.{ BinaryStep, Node, Unarystep, emptyGraph }
 
 class LogisticRegressionUsingGraph extends Model {
 
@@ -18,15 +18,15 @@ class LogisticRegressionUsingGraph extends Model {
   private val learningRate = 1
 
   private val graph = for {
-    _   <- BinaryNode(MatMul)
-    _   <- BinaryNode(Add)
-    ans <- BinaryNode(CrossEntropy)
+    _   <- BinaryStep(MatMul)
+    _   <- BinaryStep(Add)
+    ans <- BinaryStep(CrossEntropy)
   } yield ans
 
   private val predictGraph = for {
-    _   <- BinaryNode(MatMul)
-    _   <- BinaryNode(Add)
-    ans <- SingleNode(Sigmoid)
+    _   <- BinaryStep(MatMul)
+    _   <- BinaryStep(Add)
+    ans <- Unarystep(Sigmoid)
   } yield ans
 
   override def trainBatch

@@ -8,7 +8,7 @@ import org.jsun.scalax.nn.graph.operations.{ BinaryOp, SingleOp }
 
 package object graph {
   // todo: can we get rid of BinaryState and SingleState?
-  def BinaryNode(op: BinaryOp) = State[(List[Node], Graph), Tensor] {
+  def BinaryStep(op: BinaryOp) = State[(List[Node], Graph), Tensor] {
     case (n1 :: n2 :: tail, g) => {
       val ans      = op.f(n1, n2)
       val nodeName = UUID.randomUUID().toString
@@ -28,7 +28,7 @@ package object graph {
     }
   }
 
-  def SingleNode(op: SingleOp) = State[(List[Node], Graph), Tensor] {
+  def Unarystep(op: SingleOp) = State[(List[Node], Graph), Tensor] {
     case (n1 :: tail, g) => {
       val ans      = op.f(n1)
       val nodeName = UUID.randomUUID().toString
