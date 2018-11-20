@@ -1,3 +1,5 @@
+See `slides.pdf` for the presentation.
+
 ```bash
 
 mill core.compile
